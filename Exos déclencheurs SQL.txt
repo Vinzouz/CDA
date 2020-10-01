@@ -1,0 +1,180 @@
+﻿Exercice 1 base hotel
+
+1/
+DELIMITER $$
+CREATE TRIGGER modif_reservation BEFORE UPDATE ON reservation
+    FOR EACH ROW
+    BEGIN
+        SIGNAL SQLSTATE '40000' SET MESSAGE_TEXT = 'Un problème est survenu. Interdiction d'update une réservation !';
+    END;
+    $$
+DELIMITER ;
+
+2/
+DELIMITER $$
+CREATE TRIGGER insert_reservation BEFORE INSERT ON reservation
+    FOR EACH ROW
+    BEGIN
+        DECLARE compteh INT;
+        DECLARE reserv INT;
+        SET reserv = NEW.res_cha_id;
+        SET compteh = (Select count(res_id) from reservation join chambre on cha_id = res_cha_id join hotel on hot_id = cha_hot_id WHERE hot_id = (Select hot_id from hotel JOIN chambre ON hot_id = cha_hot_id JOIN reservation ON cha_id = res_cha_id WHERE res_cha_id = reserv GROUP BY hot_id));
+        IF compteh >= 10 THEN
+            SIGNAL SQLSTATE '40000' SET MESSAGE_TEXT = 'Un problème est survenu. Déjà 10 réservations pour cet hotel !';
+        END IF;
+END;
+    $$
+DELIMITER ;
+
+3/
+DELIMITER $$
+CREATE TRIGGER insert_reservation2 BEFORE INSERT ON reservation
+    FOR EACH ROW
+    BEGIN
+        DECLARE comptec INT;
+        DECLARE rescliid INT;
+        SET rescliid = NEW.res_cli_id;
+        SET comptec = (Select count(res_id) from reservation join client on res_cli_id = cli_id WHERE cli_id = (Select cli_id from client JOIN reservation ON cli_id = res_cli_id WHERE res_cli_id = rescliid GROUP BY cli_id));
+        IF comptec >= 3 THEN
+            SIGNAL SQLSTATE '40000' SET MESSAGE_TEXT = 'Un problème est survenu. Déjà 3 réservations pour ce client !';
+        END IF;
+END;
+    $$
+DELIMITER ;
+
+4/
+DELIMITER $$
+CREATE TRIGGER insert_chambre BEFORE INSERT ON chambre
+    FOR EACH ROW
+    BEGIN
+        DECLARE comptecapacite INT;
+        DECLARE chahotid INT;
+        SET chahotid = NEW.cha_hot_id;
+        SET comptecapacite = (Select SUM(cha_capacite) from chambre join hotel on cha_hot_id = hot_id WHERE hot_id = (Select hot_id from hotel JOIN chambre ON hot_id = cha_hot_id WHERE cha_hot_id = 1 GROUP BY hot_id));
+        IF comptecapacite > 50 THEN
+            SIGNAL SQLSTATE '40000' SET MESSAGE_TEXT = 'Un problème est survenu. Capacité de l hotel déjà à 50 places !';
+        END IF;
+END;
+    $$
+DELIMITER ;
+
+------------------------------------------------------------------------------------------------------------------------------------------------
+Exercice 2 base cp
+
+DELIMITER $$
+CREATE TRIGGER `maj_total` AFTER INSERT ON `lignedecommande`
+ FOR EACH ROW BEGIN
+        DECLARE id_c INT;
+        DECLARE tot DOUBLE;
+        SET id_c = NEW.id_commande; -- nous captons le numéro de commande concerné
+        SET tot = (SELECT sum(prix*quantite) FROM lignedecommande WHERE id_commande=id_c); -- on recalcul le total
+        UPDATE commande SET total=tot WHERE id=id_c; -- on stocke le total dans la table commande
+END
+    $$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER `maj_total2` AFTER UPDATE ON `lignedecommande`
+ FOR EACH ROW BEGIN
+        DECLARE id_c INT;
+        DECLARE tot DOUBLE;
+        SET id_c = NEW.id_commande; -- nous captons le numéro de commande concerné
+        SET tot = (SELECT sum(prix*quantite) FROM lignedecommande WHERE id_commande=id_c); -- on recalcul le total
+        UPDATE commande SET total=tot WHERE id=id_c; -- on stocke le total dans la table commande
+END
+    $$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER maj_total3 AFTER DELETE ON lignedecommande
+    FOR EACH ROW BEGIN
+    DECLARE id_c INT;
+    DECLARE tot DOUBLE;
+    SET id_c = OLD.id_commande; -- nous captons le numéro de commande concerné 
+    SET tot = (SELECT sum(prix*quantite) FROM lignedecommande WHERE id_commande=id_c); -- on recalcul le total
+    UPDATE commande SET total=tot WHERE id=id_c; -- on stocke le total dans la table commande 
+    END;
+        $$
+DELIMITER ;
+
+----
+
+DELIMITER $$
+CREATE TRIGGER `maj_total` AFTER INSERT ON `lignedecommande`
+ FOR EACH ROW BEGIN
+        DECLARE id_c INT;
+        DECLARE tot DOUBLE;
+        DECLARE remiseprix DOUBLE;
+        DECLARE totmoinsremise DOUBLE;
+        SET id_c = NEW.id_commande; -- nous captons le numéro de commande concerné
+        SET tot = (SELECT sum(prix*quantite) FROM lignedecommande WHERE id_commande=id_c);
+        SET remiseprix = (SELECT remise FROM commande WHERE id=id_c); -- on capte la remise de la commande par son id
+        SET totmoinsremise = tot - remiseprix;
+        IF totmoinsremise >= 0
+        UPDATE commande SET total=totmoinsremise WHERE id=id_c; -- on stocke le total dans la table commande
+        END IF;
+END
+    $$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER `maj_total2` AFTER UPDATE ON `lignedecommande`
+    FOR EACH ROW BEGIN
+        DECLARE id_c INT;
+        DECLARE tot DOUBLE;
+        DECLARE remiseprix DOUBLE;
+        DECLARE totmoinsremise DOUBLE;
+        SET id_c = NEW.id_commande; -- nous captons le numéro de commande concerné
+        SET tot = (SELECT sum(prix*quantite) FROM lignedecommande WHERE id_commande=id_c); -- on recalcul le total
+        SET remiseprix = (SELECT remise FROM commande WHERE id=id_c); -- on capte la remise de la commande par son id
+        SET totmoinsremise = tot - remiseprix;
+        IF totmoinsremise >= 0
+        UPDATE commande SET total=totmoinsremise WHERE id=id_c; -- on stocke le total dans la table commande
+        END IF;
+END
+    $$
+DELIMITER ;
+
+DELIMITER $$
+CREATE TRIGGER maj_total3 AFTER DELETE ON lignedecommande
+    FOR EACH ROW BEGIN
+    DECLARE id_c INT;
+    DECLARE tot DOUBLE;
+    DECLARE remiseprix DOUBLE;
+    DECLARE totmoinsremise DOUBLE;
+    SET id_c = OLD.id_commande; -- nous captons le numéro de commande concerné 
+    SET tot = (SELECT sum(prix*quantite) FROM lignedecommande WHERE id_commande=id_c); -- on recalcul le total
+    SET remiseprix = (SELECT remise FROM commande WHERE id=id_c); -- on capte la remise de la commande par son id
+    SET totmoinsremise = tot - remiseprix;
+    IF totmoinsremise >= 0
+    UPDATE commande SET total=totmoinsremise WHERE id=id_c; -- on stocke le total dans la table commande 
+    END IF;
+    END;
+        $$
+DELIMITER ;
+
+--------------------------------------------------------------------------------------------------------------------------------------------------
+
+DELIMITER $$
+CREATE TRIGGER insert_articles AFTER UPDATE ON produit
+    FOR EACH ROW
+    BEGIN
+    DECLARE stockapres INT;
+    DECLARE stockmin INT;
+    DECLARE qtecommandee INT;
+    DECLARE article CHAR(4);
+	SET stockapres = NEW.stkphy;
+	SET stockmin = NEW.stkale;
+	SET article = NEW.codart;
+    SET qtecommandee = (SELECT qte from articles_a_commander WHERE codart = article);
+
+	IF(stockapres<=stockmin)
+        THEN INSERT INTO articles_a_commander (codart,date,qte) VALUES (article,NOW(),(stockmin-stockapres));
+        IF(qtecommandee > 1)
+            THEN INSERT INTO articles_a_commander (codart,date,qte) VALUES (article,NOW(),(stockmin-stockapres)-qtecommandee);
+        END IF;
+	END IF; 
+
+    END;
+        $$
+DELIMITER ;
